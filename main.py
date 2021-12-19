@@ -1,5 +1,6 @@
 import taichi as ti
-from utils import Camera, Sphere, Hittable_list, Ray
+from util_classes import Camera, Sphere, Hittable_list, Ray
+from util_functions import get_rotation, get_direction_after_rotation
 ti.init(arch=ti.gpu)
 
 screen_width, screen_height = 640, 640
@@ -67,31 +68,42 @@ scene.add(Sphere(center=ti.Vector([0.7, 0, -0.5]), radius=0.5, material=3, color
 # Metal ball-2
 scene.add(Sphere(center=ti.Vector([0.6, -0.3, -2.0]), radius=0.2, material=2, color=ti.Vector([0.8, 0.6, 0.2])))
 
+a, b = (0.0, 0.0, 0.0), (0.0, 0.0,0.0)
+rotation_theta, rotation_axis = 0, [0, 0, 0]
+camera_direction = ti.Vector([0.0, 0.0, -1.0])
+new_camera_direction = ti.Vector([0.0, 0.0, -1.0])
 while gui.running:
     for e in gui.get_events(ti.GUI.PRESS, ti.GUI.MOTION, ti.GUI.RELEASE):
         if e.type == ti.GUI.PRESS:
             if e.key == ti.GUI.LMB:
                 is_dragging = True
                 start_mouse_x, start_mouse_y = gui.get_cursor_pos()
-                camera.set_lookat(1.0, 1.0, -1.0)
         elif e.type == ti.GUI.RELEASE:
             if e.key == ti.GUI.LMB:
                 is_dragging = False
                 stop_mouse_x, stop_mouse_y = gui.get_cursor_pos()
-                camera.set_lookat(0, 1.0, -1.0)
+                camera_direction = new_camera_direction
 
-    mouse_x, mouse_y = gui.get_cursor_pos()
+    now_mouse_x, now_mouse_y = gui.get_cursor_pos()
     if (is_dragging):
-        dragging_mouse_x, dragging_mouse_y = (mouse_x - start_mouse_x, mouse_y - start_mouse_y)
-    gui.text(
-    content=f'Mouse_x, mouse_y = {mouse_x:.2f}, {mouse_y:.2f}', pos=(0.6, 0.95), color=0xFFFFFF)
-    gui.text(
-    content=f'start_x, start_y = {start_mouse_x:.2f}, {start_mouse_y:.2f}', pos=(0.6, 0.9), color=0xFFFFFF)
-    gui.text(
-    content=f'dragging_x, dragging_y = {dragging_mouse_x:.2f}, {dragging_mouse_y:.2f}', pos=(0.6, 0.85), color=0xFFFFFF)
-    gui.text(
-    content=f'stop_x, stop_y = {stop_mouse_x:.2f}, {stop_mouse_y:.2f}', pos=(0.6, 0.8), color=0xFFFFFF)
-
+        dragging_mouse_x, dragging_mouse_y = (now_mouse_x - start_mouse_x, now_mouse_y - start_mouse_y)
+        rotation_theta, rotation_axis  = get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
+        if rotation_theta > 0:
+            new_camera_direction = get_direction_after_rotation(camera_direction, rotation_theta, rotation_axis)
+            camera.set_lookat(*new_camera_direction)
     update_camera()
     gui.set_image(screen)
+
+    # gui.text(
+    # content=f'Mouse_x, mouse_y = {now_mouse_x:.2f}, {now_mouse_y:.2f}', pos=(0.6, 0.95), color=0xFFFFFF)
+    # gui.text(
+    # content=f'start_x, start_y = {start_mouse_x:.2f}, {start_mouse_y:.2f}', pos=(0.6, 0.9), color=0xFFFFFF)
+    # gui.text(
+    # content=f'dragging_x, dragging_y = {dragging_mouse_x:.2f}, {dragging_mouse_y:.2f}', pos=(0.6, 0.85), color=0xFFFFFF)
+    # gui.text(
+    # content=f'stop_x, stop_y = {stop_mouse_x:.2f}, {stop_mouse_y:.2f}', pos=(0.6, 0.8), color=0xFFFFFF)
+
+    # gui.text(
+    # content=f'({a[0]:.2f}, {a[1]:.2f}, {a[2]:.2f}),  ({b[0]:.2f}, {b[1]:.2f}, {b[2]:.2f})', pos=(0.6, 0.75), color=0xFFFFFF)
+    
     gui.show()
