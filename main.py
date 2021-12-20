@@ -1,6 +1,6 @@
 import taichi as ti
-from util_classes import Camera, Sphere, Hittable_list, Ray
-from util_functions import get_rotation, get_direction_after_rotation
+from util_classes import Camera, Sphere, Hittable_list, Ray, QuadranglePlane, Cube
+from util_rotation import Rotation, Quaternion
 ti.init(arch=ti.gpu)
 
 screen_width, screen_height = 640, 640
@@ -46,6 +46,16 @@ start_mouse_x, start_mouse_y, stop_mouse_x, stop_mouse_y, dragging_mouse_x, drag
 is_dragging = False
 
 scene = Hittable_list()
+plane = QuadranglePlane(
+    pointA=ti.Vector([-0.5, -0.5, 0.5]),
+    pointB=ti.Vector([-0.5, 0.5, 0.5]),
+    pointC=ti.Vector([0.5, 0.5, 0.5]),
+    pointD=ti.Vector([0.5, -0.5,  0.5]),
+    color = ti.Vector([0.12, 0.34, 0.56])      
+)
+
+scene.add(plane)
+
 # Light source
 scene.add(Sphere(center=ti.Vector([0, 5.4, -1]), radius=3.0, material=0, color=ti.Vector([10.0, 10.0, 10.0])))
 # Ground
@@ -59,25 +69,37 @@ scene.add(Sphere(center=ti.Vector([-101.5, 0, -1]), radius=100.0, material=1, co
 # left wall
 scene.add(Sphere(center=ti.Vector([101.5, 0, -1]), radius=100.0, material=1, color=ti.Vector([0.0, 0.6, 0.0])))
 
-# Diffuse ball
-scene.add(Sphere(center=ti.Vector([0, -0.2, -1.5]), radius=0.3, material=1, color=ti.Vector([0.8, 0.3, 0.3])))
-# Metal ball
-scene.add(Sphere(center=ti.Vector([-0.8, 0.2, -1]), radius=0.7, material=2, color=ti.Vector([0.6, 0.8, 0.8])))
-# Glass ball
-scene.add(Sphere(center=ti.Vector([0.7, 0, -0.5]), radius=0.5, material=3, color=ti.Vector([1.0, 1.0, 1.0])))
-# Metal ball-2
-scene.add(Sphere(center=ti.Vector([0.6, -0.3, -2.0]), radius=0.2, material=2, color=ti.Vector([0.8, 0.6, 0.2])))
+# # Diffuse ball
+# scene.add(Sphere(center=ti.Vector([0, -0.2, -1.5]), radius=0.3, material=1, color=ti.Vector([0.8, 0.3, 0.3])))
+# # Metal ball
+# scene.add(Sphere(center=ti.Vector([-0.8, 0.2, -1]), radius=0.7, material=2, color=ti.Vector([0.6, 0.8, 0.8])))
+# # Glass ball
+# scene.add(Sphere(center=ti.Vector([0.7, 0, -0.5]), radius=0.5, material=3, color=ti.Vector([1.0, 1.0, 1.0])))
+# # Metal ball-2
+# scene.add(Sphere(center=ti.Vector([0.6, -0.3, -2.0]), radius=0.2, material=2, color=ti.Vector([0.8, 0.6, 0.2])))
 
-a, b = (0.0, 0.0, 0.0), (0.0, 0.0,0.0)
-rotation_theta, rotation_axis = 0, [0, 0, 0]
+# # rotation_theta, rotation_axis = 0, [0, 0, 0]
+
 camera_direction = ti.Vector([0.0, 0.0, -1.0])
 new_camera_direction = ti.Vector([0.0, 0.0, -1.0])
+
+xAxis = ti.Vector([-1.0, 0.0, 0.0])
+yAxis = ti.Vector([0.0, 1.0, 0.0])
+# initial_direction_matrix = ti.Matrix([[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]).transpose()
+# We should normalize here, but we know that it's norm is 1
+rotation = Rotation(xAxis, yAxis, camera_direction)
+
 while gui.running:
     for e in gui.get_events(ti.GUI.PRESS, ti.GUI.MOTION, ti.GUI.RELEASE):
         if e.type == ti.GUI.PRESS:
             if e.key == ti.GUI.LMB:
                 is_dragging = True
                 start_mouse_x, start_mouse_y = gui.get_cursor_pos()
+            elif e.key == 'r':
+                camera.reset()
+                rotation.targetQRotation = Quaternion(1.0, 0.0, 0.0, 0.0)
+                camera_direction = ti.Vector([0.0, 0.0, -1.0])
+                new_camera_direction = ti.Vector([0.0, 0.0, -1.0])
         elif e.type == ti.GUI.RELEASE:
             if e.key == ti.GUI.LMB:
                 is_dragging = False
@@ -87,10 +109,19 @@ while gui.running:
     now_mouse_x, now_mouse_y = gui.get_cursor_pos()
     if (is_dragging):
         dragging_mouse_x, dragging_mouse_y = (now_mouse_x - start_mouse_x, now_mouse_y - start_mouse_y)
-        rotation_theta, rotation_axis  = get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
+        # x, y, z = rotation.get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
+        # print(x, y, z)
+        # camera.set_lookat(x, y, z)
+        
+        rotation_theta, rotation_axis  = rotation.get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
+        print(f"{rotation_theta=}, {rotation_axis=}")
+
         if rotation_theta > 0:
-            new_camera_direction = get_direction_after_rotation(camera_direction, rotation_theta, rotation_axis)
+            new_camera_direction = rotation.get_direction_after_rotation(camera_direction, rotation_theta, rotation_axis)
+            print("Camera:", camera_direction)
+            print("Now camera:", new_camera_direction)
             camera.set_lookat(*new_camera_direction)
+
     update_camera()
     gui.set_image(screen)
 

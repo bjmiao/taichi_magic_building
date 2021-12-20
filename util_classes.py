@@ -10,6 +10,74 @@ class Ray:
     def at(self, t):
         return self.origin + t * self.direction
 
+@ti.func
+def area_triangle(pointA, pointB, pointC):
+    s1 = pointB - pointA
+    s2 = pointC - pointA
+    return 0.5 * s1.cross(s2).norm()
+
+@ti.data_oriented
+class QuadranglePlane:
+    def __init__(self, pointA, pointB, pointC, pointD, color):
+        self.pointA = pointA
+        self.pointB = pointB
+        self.pointC = pointC
+        self.pointD = pointD
+        self.color = color
+        self.material = 0 # not used yet
+        self.norm_direction = (pointA - pointC).cross(pointB - pointD).normalized()
+        self.D = -self.pointA.dot(self.norm_direction)
+        print(f"{self.norm_direction=}, {self.D=}")
+
+    @ti.func
+    def hit(self, ray, t_min = 0.001, t_max = 10e8):
+        is_hit = False
+        front_face = False
+        root = 0.0
+        hit_point =  ti.Vector([0.0, 0.0, 0.0])
+        hit_point_normal = self.norm_direction
+        # print(f"{ray.direction=}, {ray.origin=}")
+        if abs(ray.direction.dot(self.norm_direction)) < 1e-5:
+            # print("Ray Perpendicular to plane. Not hit")
+            is_hit = False
+        else:
+            root = (self.pointA - ray.origin).dot(self.norm_direction) / ray.direction.dot(self.norm_direction)
+            # print(f"{root=}")
+            if (root < 0):
+                # print("Not hit")
+                is_hit = False
+            else:
+                hit_point = ray.origin + root * ray.direction
+                # print(f"Intersection: {hit_point=}")
+                # check whether P is in this quadrangle
+                area_q1 = area_triangle(self.pointA, self.pointB, self.pointC)
+                area_q2 = area_triangle(self.pointD, self.pointB, self.pointC)
+                # print(f"{area_q1=}, {area_q2=}")
+                area_t1 = area_triangle(hit_point, self.pointA, self.pointB)
+                area_t2 = area_triangle(hit_point, self.pointB, self.pointC)
+                area_t3 = area_triangle(hit_point, self.pointC, self.pointD)
+                area_t4 = area_triangle(hit_point, self.pointD, self.pointA)
+                # print(f"{area_t1=}, {area_t2=}, {area_t3=}, {area_t4=}")
+                if abs(area_t1 + area_t2 + area_t3 + area_t4 - area_q1 - area_q2) < 1e-3:
+                    # print("Hit")
+                    is_hit = True
+                else:
+                    # print("No hit")
+                    is_hit = False
+        return is_hit, root, hit_point, hit_point_normal, front_face, self.material, self.color
+
+
+@ti.data_oriented
+class Cube:
+    def __init__(self, origin, length):
+        self.origin = origin # most left, down, near point
+        self.length = length
+        # There are 6 plain
+
+
+    @ti.func
+    def hit(self, ray, t_min = 0.001, t_max = 10e8):
+        pass
 
 @ti.data_oriented
 class Sphere:
@@ -106,9 +174,10 @@ class Hittable_list:
 class Camera:
     def __init__(self, fov=60, aspect_ratio = 1.0):
         self.lookfrom = ti.Vector.field(3, dtype=ti.f32, shape=())
-        self.lookat = ti.Vector.field(3, dtype=ti.f32, shape=())
+        # self.lookat = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.vup = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.vdown = ti.Vector.field(3, dtype=ti.f32, shape=())
+        self.w = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.fov = fov
         self.aspect_ratio = aspect_ratio
 
@@ -120,13 +189,15 @@ class Camera:
     @ti.kernel
     def reset(self):
         self.lookfrom[None] = [0.0, 1.0, -5.0]
-        self.lookat[None] = [0.0, 1.0, -1.0]
+        # self.lookat[None] = [0.0, 1.0, -1.0]
         self.vup[None] = [0.0, 1.0, 0.0]
+        self.w[None] = [0.0, 0.0, -1.0]
+        # self.w[None] = (self.lookfrom[None] - self.lookat[None]).normalized()
         self.calculate_parameter()
 
     @ti.kernel
     def set_lookat(self, x:ti.f32, y:ti.f32, z:ti.f32):
-        self.lookat[None] = ti.Vector([x, y, z])
+        self.w[None] = ti.Vector([x, y, z]).normalized()
         self.calculate_parameter()
 
     @ti.func
@@ -135,13 +206,12 @@ class Camera:
         half_height = ti.tan(theta / 2.0)
         half_width = self.aspect_ratio * half_height
         self.cam_origin[None] = self.lookfrom[None]
-        w = (self.lookfrom[None] - self.lookat[None]).normalized()
-        print(w)
-        u = (self.vup[None].cross(w)).normalized()
-        v = w.cross(u)
+        u = (self.vup[None].cross(self.w[None])).normalized()
+        v = self.w[None].cross(u)
+        print(u, v)
         self.cam_lower_left_corner[None] = ti.Vector([-half_width, -half_height, -1.0])
         self.cam_lower_left_corner[
-            None] = self.cam_origin[None] - half_width * u - half_height * v - w
+            None] = self.cam_origin[None] - half_width * u - half_height * v - self.w[None]
         self.cam_horizontal[None] = 2 * half_width * u
         self.cam_vertical[None] = 2 * half_height * v
 
