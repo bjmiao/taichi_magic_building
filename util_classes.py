@@ -72,12 +72,73 @@ class Cube:
     def __init__(self, origin, length):
         self.origin = origin # most left, down, near point
         self.length = length
-        # There are 6 plain
-
+        # Z axis
+        # |   ____
+        # | /    /|  /-- Y axis
+        # |/ U  / | /
+        # |----/ R|/
+        # |    |  /
+        # | F  | /
+        # --------------X axis
+        # ↑ Origin
+        point_LFD = origin
+        point_RFD = origin + ti.Vector([length, 0.0, 0.0])
+        point_LBD = origin + ti.Vector([0.0, length, 0.0])
+        point_RBD = origin + ti.Vector([length, length, 0.0])
+        point_LFU = origin + ti.Vector([0.0, 0.0, length])
+        point_RFU = origin + ti.Vector([length, 0.0, length])
+        point_LBU = origin + ti.Vector([0.0, length, length])
+        point_RBU = origin + ti.Vector([length, length, length])
+        plain_list = []
+        # Front
+        plain_list.append(QuadranglePlane(
+                point_LFD, point_LFU, point_RFU, point_RFD, color = ti.Vector([1.0, 0.0, 0.0])
+        ))
+        # Back
+        plain_list.append(QuadranglePlane(
+                point_LBD, point_LBU, point_RBU, point_RBD, color = ti.Vector([0.0, 1.0, 0.0])
+        ))
+        # Left
+        plain_list.append(QuadranglePlane(
+            point_LBD, point_LFD, point_LFU, point_LBU, color = ti.Vector([0.0, 0.0, 1.0])
+        ))
+        # right
+        plain_list.append(QuadranglePlane(
+            point_RBD, point_RFD, point_RFU, point_RBU, color = ti.Vector([0.0, 1.0, 1.0])
+        ))
+        # Up
+        plain_list.append(QuadranglePlane(
+            point_LBU, point_RBU, point_RFU, point_LFU, color = ti.Vector([1.0, 1.0, 0.0])
+        ))
+        # Down
+        plain_list.append(QuadranglePlane(
+            point_LBD, point_RBD, point_RFD, point_LFD, color = ti.Vector([1.0, 0.0, 1.0])
+        ))
+        self.plain_list = plain_list
 
     @ti.func
     def hit(self, ray, t_min = 0.001, t_max = 10e8):
-        pass
+        is_hit = False
+        min_root = t_max
+        final_hit_point = ti.Vector([0.0, 0.0, 0.0])
+        final_hit_point_normal = ti.Vector([0.0, 0.0, 0.0])
+        final_front_face = False
+        final_material = 0
+        final_color = ti.Vector([0.0, 0.0, 0.0])
+        for index in ti.static(range(len(self.plain_list))):
+            this_is_hit, root, hit_point, hit_point_normal, front_face, material, color = self.plain_list[index].hit(ray, t_min, t_max)
+            # print("BBB", this_is_hit, root, hit_point, hit_point_normal, front_face, material, color)
+            if this_is_hit:
+                is_hit = True
+                if (root < min_root):
+                    min_root = root
+                    final_hit_point = hit_point
+                    final_hit_point_normal = hit_point_normal
+                    final_front_face = front_face
+                    final_material = material
+                    final_color = color
+        # print("AAA", is_hit, min_root, final_hit_point, final_hit_point_normal, final_front_face, final_material, final_color)
+        return is_hit, min_root, final_hit_point, final_hit_point_normal, final_front_face, final_material, final_color
 
 @ti.data_oriented
 class Sphere:
@@ -198,6 +259,11 @@ class Camera:
     @ti.kernel
     def set_lookat(self, x:ti.f32, y:ti.f32, z:ti.f32):
         self.w[None] = ti.Vector([x, y, z]).normalized()
+        self.calculate_parameter()
+
+    @ti.kernel
+    def set_lookfrom(self, x:ti.f32, y:ti.f32, z:ti.f32):
+        self.lookfrom[None] = [x, y, z]
         self.calculate_parameter()
 
     @ti.func

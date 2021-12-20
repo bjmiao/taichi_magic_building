@@ -46,15 +46,15 @@ start_mouse_x, start_mouse_y, stop_mouse_x, stop_mouse_y, dragging_mouse_x, drag
 is_dragging = False
 
 scene = Hittable_list()
-plane = QuadranglePlane(
-    pointA=ti.Vector([-0.5, -0.5, 0.5]),
-    pointB=ti.Vector([-0.5, 0.5, 0.5]),
-    pointC=ti.Vector([0.5, 0.5, 0.5]),
-    pointD=ti.Vector([0.5, -0.5,  0.5]),
-    color = ti.Vector([0.12, 0.34, 0.56])      
-)
+# plane = QuadranglePlane(
+#     pointA=ti.Vector([-0.5, -0.5, 0.5]),
+#     pointB=ti.Vector([-0.5, 0.5, 0.5]),
+#     pointC=ti.Vector([0.5, 0.5, 0.5]),
+#     pointD=ti.Vector([0.5, -0.5,  0.5]),
+#     color = ti.Vector([0.12, 0.34, 0.56])      
+# )
 
-scene.add(plane)
+scene.add(Cube(origin = ti.Vector([0.5, 0.5, 0.5]), length = 1.0))
 
 # Light source
 scene.add(Sphere(center=ti.Vector([0, 5.4, -1]), radius=3.0, material=0, color=ti.Vector([10.0, 10.0, 10.0])))
@@ -88,6 +88,7 @@ yAxis = ti.Vector([0.0, 1.0, 0.0])
 # initial_direction_matrix = ti.Matrix([[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]).transpose()
 # We should normalize here, but we know that it's norm is 1
 rotation = Rotation(xAxis, yAxis, camera_direction)
+look_from = ti.Vector([0.0, 1.0, -5.0])
 
 while gui.running:
     for e in gui.get_events(ti.GUI.PRESS, ti.GUI.MOTION, ti.GUI.RELEASE):
@@ -95,11 +96,18 @@ while gui.running:
             if e.key == ti.GUI.LMB:
                 is_dragging = True
                 start_mouse_x, start_mouse_y = gui.get_cursor_pos()
-            elif e.key == 'r':
+            elif e.key == 'r' or e.key == 'R':
                 camera.reset()
                 rotation.targetQRotation = Quaternion(1.0, 0.0, 0.0, 0.0)
                 camera_direction = ti.Vector([0.0, 0.0, -1.0])
                 new_camera_direction = ti.Vector([0.0, 0.0, -1.0])
+            elif e.key == 'w' or e.key == 'W':
+                look_from = look_from - new_camera_direction * 0.1
+                camera.set_lookfrom(*look_from)
+            elif e.key == 's' or e.key == 'S':
+                look_from = look_from + new_camera_direction * 0.1
+                camera.set_lookfrom(*look_from)
+
         elif e.type == ti.GUI.RELEASE:
             if e.key == ti.GUI.LMB:
                 is_dragging = False
