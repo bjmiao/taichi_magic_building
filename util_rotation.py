@@ -47,64 +47,81 @@ class Quaternion:
     # def multiply(i: Quaternion, j: Quaternion):
     #     pass
 
+import numpy as np
 class Rotation:
-    def __init__(self, xAxis, yAxis, zAxis):
-        mat = ti.Matrix([list(xAxis), list(yAxis), list(-zAxis)]).transpose()
-        # self.targetQRotation = Quaternion.from_diagonal_matrix(mat)
-        self.targetQRotation = Quaternion(1.0, 0.0, 0.0, 0.0)
-        print(self.targetQRotation)
-        self.direction = zAxis
+    def __init__(self, u, v, w, omega = 0.2):
+        """ u: left to screen
+            v: up to the screen
+            w: my eye to screen center
+            omega: angular velocity in theta per timestamp """
+        self.u = u
+        self.v = v
+        self.w = w
+        self.omega = omega
 
-    def get_rotation(self, x1, y1, x2, y2):
-        radius = 0.5 # the screen axis is [0, 1], radius = 0.5
-        center_x, center_y = 0.5, 0.5
-        x1 = (x1 - center_x) / radius
-        x2 = (x2 - center_x) / radius
-        y1 = (y1 - center_y) / radius
-        y2 = (y2 - center_y) / radius
-        z1, z2 = 0, 0
-        r1 = x1 * x1 + y1 * y1
-        if r1 > 1.0:
-            s = 1.0 / ti.sqrt(r1)
-            x1 *= s
-            y1 *= s
-            z1 = 0
-        else:
-            z1 = ti.sqrt(1.0 - r1)
-        r2 = x2 * x2 + y2 * y2
-        if r2 > 1.0:
-            s = 1.0 / ti.sqrt(r2)
-            x2 *= s
-            y2 *= s
-            z2 = 0
-        else:
-            z2 = ti.sqrt(1.0 - r2)
-        p1 = ti.Vector([x1, y1, z1])
-        p2 = ti.Vector([x2, y2, z2])
-        rotation_theta = ti.acos(p1.dot(p2))
-        rotation_axis = p1.cross(p2)
-        if rotation_axis.norm() > 1e-2:
-            rotation_axis = rotation_axis.normalized()
-        else:
-            rotation_theta = 0 # do not rotate
-        print(rotation_theta, rotation_axis)
-        return rotation_theta, rotation_axis
-        # return (x1, y1, z1), (x2, y2, z2)
+    @staticmethod
+    def _rotate_matrix(axis: ti.Vector, theta):
+        cos_theta = ti.cos(theta)
+        sin_theta = ti.sin(theta)
+
+        R = ti.Matrix([[
+            cos_theta + axis[0] * axis[0] * (1 - cos_theta),
+            axis[0] * axis[1] * (1 - cos_theta) - axis[2] * sin_theta,
+            axis[0] * axis[2] * (1 - cos_theta) + axis[1] * sin_theta
+          ], [
+            axis[1] * axis[0] * (1 - cos_theta) + axis[2] * sin_theta,
+            cos_theta + axis[1] * axis[1] * (1 - cos_theta),
+            axis[1] * axis[2] * (1 - cos_theta) - axis[0] * sin_theta
+          ], [
+            axis[2] * axis[0] * (1 - cos_theta) - axis[1] * sin_theta,
+            axis[2] * axis[1] * (1 - cos_theta) + axis[0] * sin_theta,
+            cos_theta + axis[2] * axis[2] * (1 - cos_theta)
+          ]
+        ])
+        return R
+    def rotate(self, direction = ti.Vector([0, 0, 0])):
+        # direction: [-1/0/1, -1/0/1, -1/0/1]
+        # first dim: rotate along u
+        # second dim: rotate along v
+        # third dim: rotate along w
+        # if direction[0] == "-1":
+        R = Rotation._rotate_matrix(self.u, -self.omega)
+        self.v = R @ self.v
+        self.w = R @ self.w
+
+        R = Rotation._rotate_matrix(self.w, -self.omega)
+        self.u = R @ self.u
+        self.v = R @ self.v
+        # print(self.v.shape)
+        # import pdb
+        # pdb.set_trace()
+        # print(type(self.v))
+        # print(self.w)
+        # print(type(self.w))
+        # print(R)
+        # print(np.linalg.det(R.to_numpy()))
+
+        # R2 = Rotation._rotate_matrix(self.u, -self.omega)
+        # print(R2)
+        # print(np.linalg.det(R2.to_numpy()))
+
+        # R3 = Rotation._rotate_matrix(self.w, self.omega)
+        # print(R3)
+        # print(np.linalg.det(R3.to_numpy()))
+
+        # R4 = Rotation._rotate_matrix(self.w, -self.omega)
+        # print(R4)
+        # print(np.linalg.det(R4.to_numpy()))
+
+        # R5 = Rotation._rotate_matrix(self.v, self.omega)
+        # print(R5)
+        # print(np.linalg.det(R5.to_numpy()))
+
+        # R6 = Rotation._rotate_matrix(self.v, -self.omega)
+        # print(R6)
+        # print(np.linalg.det(R6.to_numpy()))
 
 
-    def get_direction_after_rotation(self, old_dir, theta, axis):
-        print(axis)
-        axis_x, axis_y, axis_z = axis
-        old_x, old_y, old_z = old_dir
-        q = Quaternion(theta / 2, axis_x, axis_y, axis_z)
-        p = Quaternion(0, old_x, old_y, old_z)
-        q_inverse = Quaternion(-theta/2, axis_x, axis_y, axis_z)
-        print("===")
-        print(q)
-        print(p)
-        print(q_inverse)
-        new_dir_quad = q.prod(p).prod(q_inverse)
-        print(new_dir_quad)
-        new_dir = new_dir_quad.get_elements()
-        new_dir = ti.Vector(new_dir).normalized()
-        return new_dir
+
+        return self.u, self.v, self.w
+

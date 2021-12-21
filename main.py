@@ -78,16 +78,12 @@ scene.add(Sphere(center=ti.Vector([101.5, 0, -1]), radius=100.0, material=1, col
 # # Metal ball-2
 # scene.add(Sphere(center=ti.Vector([0.6, -0.3, -2.0]), radius=0.2, material=2, color=ti.Vector([0.8, 0.6, 0.2])))
 
-# # rotation_theta, rotation_axis = 0, [0, 0, 0]
-
-camera_direction = ti.Vector([0.0, 0.0, -1.0])
-new_camera_direction = ti.Vector([0.0, 0.0, -1.0])
-
-xAxis = ti.Vector([-1.0, 0.0, 0.0])
-yAxis = ti.Vector([0.0, 1.0, 0.0])
-# initial_direction_matrix = ti.Matrix([[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]).transpose()
-# We should normalize here, but we know that it's norm is 1
-rotation = Rotation(xAxis, yAxis, camera_direction)
+# init direction
+rotation = Rotation(
+    ti.Vector([-1.0, 0.0, 0.0]),
+    ti.Vector([0.0, 1.0, 0.0]),
+    ti.Vector([0.0, 0.0, -1.0]),
+    )
 look_from = ti.Vector([0.0, 1.0, -5.0])
 
 while gui.running:
@@ -96,39 +92,40 @@ while gui.running:
             if e.key == ti.GUI.LMB:
                 is_dragging = True
                 start_mouse_x, start_mouse_y = gui.get_cursor_pos()
+                rotation.rotate()
+                print(rotation.w, rotation.u, rotation.v)
+                camera.set_direction_w(rotation.w[0], rotation.w[1], rotation.w[2], 0)
+                camera.set_direction_u(rotation.u[0], rotation.u[1], rotation.u[2], 0)
+                camera.set_direction_v(rotation.v[0], rotation.v[1], rotation.v[2], 1)  # We only need update camera parameter at last
             elif e.key == 'r' or e.key == 'R':
                 camera.reset()
-                rotation.targetQRotation = Quaternion(1.0, 0.0, 0.0, 0.0)
-                camera_direction = ti.Vector([0.0, 0.0, -1.0])
-                new_camera_direction = ti.Vector([0.0, 0.0, -1.0])
             elif e.key == 'w' or e.key == 'W':
-                look_from = look_from - new_camera_direction * 0.1
+                look_from = look_from + rotation.w * 0.1
                 camera.set_lookfrom(*look_from)
             elif e.key == 's' or e.key == 'S':
-                look_from = look_from + new_camera_direction * 0.1
+                look_from = look_from - rotation.w * 0.1
                 camera.set_lookfrom(*look_from)
 
         elif e.type == ti.GUI.RELEASE:
             if e.key == ti.GUI.LMB:
                 is_dragging = False
                 stop_mouse_x, stop_mouse_y = gui.get_cursor_pos()
-                camera_direction = new_camera_direction
 
     now_mouse_x, now_mouse_y = gui.get_cursor_pos()
-    if (is_dragging):
-        dragging_mouse_x, dragging_mouse_y = (now_mouse_x - start_mouse_x, now_mouse_y - start_mouse_y)
+    # if (is_dragging):
+    #     dragging_mouse_x, dragging_mouse_y = (now_mouse_x - start_mouse_x, now_mouse_y - start_mouse_y)
         # x, y, z = rotation.get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
         # print(x, y, z)
         # camera.set_lookat(x, y, z)
         
-        rotation_theta, rotation_axis  = rotation.get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
-        print(f"{rotation_theta=}, {rotation_axis=}")
+        # rotation_theta, rotation_axis  = rotation.get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
+        # print(f"{rotation_theta=}, {rotation_axis=}")
 
-        if rotation_theta > 0:
-            new_camera_direction = rotation.get_direction_after_rotation(camera_direction, rotation_theta, rotation_axis)
-            print("Camera:", camera_direction)
-            print("Now camera:", new_camera_direction)
-            camera.set_lookat(*new_camera_direction)
+        # if rotation_theta > 0:
+        #     new_camera_direction = rotation.get_direction_after_rotation(camera_direction, rotation_theta, rotation_axis)
+        #     print("Camera:", camera_direction)
+        #     print("Now camera:", new_camera_direction)
+        #     camera.set_lookat(*new_camera_direction)
 
     update_camera()
     gui.set_image(screen)

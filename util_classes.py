@@ -239,6 +239,8 @@ class Camera:
         self.vup = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.vdown = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.w = ti.Vector.field(3, dtype=ti.f32, shape=())
+        self.v = ti.Vector.field(3, dtype=ti.f32, shape=())
+        self.u = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.fov = fov
         self.aspect_ratio = aspect_ratio
 
@@ -249,17 +251,33 @@ class Camera:
         self.reset()
     @ti.kernel
     def reset(self):
+        self.vup[None] = [0.0, 1.0, 0.0] # TODO: seems unnecessary?
+
         self.lookfrom[None] = [0.0, 1.0, -5.0]
-        # self.lookat[None] = [0.0, 1.0, -1.0]
-        self.vup[None] = [0.0, 1.0, 0.0]
+        self.u[None] = [-1.0, 0.0, 0.0]
+        self.v[None] = [0.0, 1.0, 0.0]
         self.w[None] = [0.0, 0.0, -1.0]
+
         # self.w[None] = (self.lookfrom[None] - self.lookat[None]).normalized()
         self.calculate_parameter()
 
     @ti.kernel
-    def set_lookat(self, x:ti.f32, y:ti.f32, z:ti.f32):
-        self.w[None] = ti.Vector([x, y, z]).normalized()
-        self.calculate_parameter()
+    def set_direction_w(self, w1:ti.f32, w2:ti.f32, w3:ti.f32, need_calculate_parameter: ti.i8):
+        self.w[None] = ti.Vector([w1, w2, w3])
+        if (need_calculate_parameter == 1):
+            self.calculate_parameter()
+
+    @ti.kernel
+    def set_direction_u(self, u1:ti.f32, u2:ti.f32, u3:ti.f32, need_calculate_parameter: ti.i8):
+        self.u[None] = ti.Vector([u1, u2, u3])
+        if (need_calculate_parameter == 1):
+            self.calculate_parameter()
+
+    @ti.kernel
+    def set_direction_v(self, v1:ti.f32, v2:ti.f32, v3:ti.f32, need_calculate_parameter: ti.i8):
+        self.v[None] = ti.Vector([v1, v2, v3])
+        if (need_calculate_parameter == 1):
+            self.calculate_parameter()
 
     @ti.kernel
     def set_lookfrom(self, x:ti.f32, y:ti.f32, z:ti.f32):
@@ -268,18 +286,19 @@ class Camera:
 
     @ti.func
     def calculate_parameter(self):
+        print("====")
+        print(self.u[None])
+        print(self.v[None])
+        print(self.w[None])
         theta = self.fov * (PI / 180.0)
         half_height = ti.tan(theta / 2.0)
         half_width = self.aspect_ratio * half_height
         self.cam_origin[None] = self.lookfrom[None]
-        u = (self.vup[None].cross(self.w[None])).normalized()
-        v = self.w[None].cross(u)
-        print(u, v)
         self.cam_lower_left_corner[None] = ti.Vector([-half_width, -half_height, -1.0])
         self.cam_lower_left_corner[
-            None] = self.cam_origin[None] - half_width * u - half_height * v - self.w[None]
-        self.cam_horizontal[None] = 2 * half_width * u
-        self.cam_vertical[None] = 2 * half_height * v
+            None] = self.cam_origin[None] - half_width * self.u[None] - half_height * self.v[None] - self.w[None]
+        self.cam_horizontal[None] = 2 * half_width * self.u[None]
+        self.cam_vertical[None] = 2 * half_height * self.v[None]
 
     @ti.func
     def get_ray(self, u, v):
