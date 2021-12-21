@@ -85,47 +85,58 @@ rotation = Rotation(
     ti.Vector([0.0, 0.0, -1.0]),
     )
 look_from = ti.Vector([0.0, 1.0, -5.0])
+look_from_init = look_from
 
+# We use a state recording method to implement a fluent long-press
+is_pressed = [0, 0, 0, 0, 0, 0] # [S/down, W/up, D/right, A/left, LBM/cc-wise, RBM/c-wise]
+is_going_forward = 0
 while gui.running:
     for e in gui.get_events(ti.GUI.PRESS, ti.GUI.MOTION, ti.GUI.RELEASE):
         if e.type == ti.GUI.PRESS:
-            if e.key == ti.GUI.LMB:
-                is_dragging = True
-                start_mouse_x, start_mouse_y = gui.get_cursor_pos()
-                rotation.rotate()
-                print(rotation.w, rotation.u, rotation.v)
-                camera.set_direction_w(rotation.w[0], rotation.w[1], rotation.w[2], 0)
-                camera.set_direction_u(rotation.u[0], rotation.u[1], rotation.u[2], 0)
-                camera.set_direction_v(rotation.v[0], rotation.v[1], rotation.v[2], 1)  # We only need update camera parameter at last
-            elif e.key == 'r' or e.key == 'R':
-                camera.reset()
+            if e.key == 's' or e.key == 'S':
+                is_pressed[0] = 1
             elif e.key == 'w' or e.key == 'W':
-                look_from = look_from + rotation.w * 0.1
-                camera.set_lookfrom(*look_from)
-            elif e.key == 's' or e.key == 'S':
-                look_from = look_from - rotation.w * 0.1
-                camera.set_lookfrom(*look_from)
+                is_pressed[1] = 1
+            elif e.key == 'd' or e.key == 'D':
+                is_pressed[2] = 1
+            elif e.key == 'a' or e.key == 'A':
+                is_pressed[3] = 1
+            elif e.key == ti.GUI.LMB:
+                is_pressed[4] = 1
+            elif e.key == ti.GUI.RMB:
+                is_pressed[5] = 1
+            elif e.key == ti.GUI.SPACE:
+                is_going_forward = 1
+            elif e.key == 'r' or e.key == 'R':
+                look_from = look_from_init
+                camera.reset()
+                rotation.reset()
 
-        elif e.type == ti.GUI.RELEASE:
-            if e.key == ti.GUI.LMB:
-                is_dragging = False
-                stop_mouse_x, stop_mouse_y = gui.get_cursor_pos()
+        if e.type == ti.GUI.RELEASE:
+            if e.key == 's' or e.key == 'S':
+                is_pressed[0] = 0
+            elif e.key == 'w' or e.key == 'W':
+                is_pressed[1] = 0
+            elif e.key == 'd' or e.key == 'D':
+                is_pressed[2] = 0
+            elif e.key == 'a' or e.key == 'A':
+                is_pressed[3] = 0
+            elif e.key == ti.GUI.LMB:
+                is_pressed[4] = 0
+            elif e.key == ti.GUI.RMB:
+                is_pressed[5] = 0
+            elif e.key == ti.GUI.SPACE:
+                is_going_forward = 0
 
-    now_mouse_x, now_mouse_y = gui.get_cursor_pos()
-    # if (is_dragging):
-    #     dragging_mouse_x, dragging_mouse_y = (now_mouse_x - start_mouse_x, now_mouse_y - start_mouse_y)
-        # x, y, z = rotation.get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
-        # print(x, y, z)
-        # camera.set_lookat(x, y, z)
-        
-        # rotation_theta, rotation_axis  = rotation.get_rotation(start_mouse_x, start_mouse_y, now_mouse_x, now_mouse_y)
-        # print(f"{rotation_theta=}, {rotation_axis=}")
+    if (sum(is_pressed) > 0):
+        rotation.rotate(ti.Vector([is_pressed[1] - is_pressed[0], is_pressed[3] - is_pressed[2], is_pressed[5] - is_pressed[4]]))
+        camera.set_direction_w(*rotation.w, 0)
+        camera.set_direction_u(*rotation.u, 0)
+        camera.set_direction_v(*rotation.v, 1)  # We only need update camera parameter at last
 
-        # if rotation_theta > 0:
-        #     new_camera_direction = rotation.get_direction_after_rotation(camera_direction, rotation_theta, rotation_axis)
-        #     print("Camera:", camera_direction)
-        #     print("Now camera:", new_camera_direction)
-        #     camera.set_lookat(*new_camera_direction)
+    if (is_going_forward):
+        look_from = look_from - rotation.w * 0.01
+        camera.set_lookfrom(*look_from)
 
     update_camera()
     gui.set_image(screen)
