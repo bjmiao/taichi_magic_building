@@ -10,24 +10,25 @@ class Ray:
     def at(self, t):
         return self.origin + t * self.direction
 
-@ti.func
-def area_triangle(pointA, pointB, pointC):
-    s1 = pointB - pointA
-    s2 = pointC - pointA
-    return 0.5 * s1.cross(s2).norm()
+# @ti.func
+# def area_triangle(pointA, pointB, pointC):
+#     s1 = pointB - pointA
+#     s2 = pointC - pointA
+#     return 0.5 * s1.cross(s2).norm()
 
 @ti.data_oriented
 class QuadranglePlane:
+    # def __init__(self, color):
     def __init__(self, pointA, pointB, pointC, pointD, color):
         self.pointA = pointA
         self.pointB = pointB
         self.pointC = pointC
         self.pointD = pointD
+        print(pointA, pointB, pointC, pointD)
         self.color = color
         self.material = 0 # not used yet
-        self.norm_direction = (pointA - pointC).cross(pointB - pointD).normalized()
+        self.norm_direction = (self.pointA - self.pointC).cross(self.pointB - self.pointD).normalized()
         self.D = -self.pointA.dot(self.norm_direction)
-        print(f"{self.norm_direction=}, {self.D=}")
 
     @ti.func
     def hit(self, ray, t_min = 0.001, t_max = 10e8):
@@ -37,7 +38,7 @@ class QuadranglePlane:
         hit_point =  ti.Vector([0.0, 0.0, 0.0])
         hit_point_normal = self.norm_direction
         # print(f"{ray.direction=}, {ray.origin=}")
-        if abs(ray.direction.dot(self.norm_direction)) < 1e-5:
+        if ti.abs(ray.direction.dot(self.norm_direction)) < 1e-5:
             # print("Ray Perpendicular to plane. Not hit")
             is_hit = False
         else:
@@ -50,14 +51,20 @@ class QuadranglePlane:
                 hit_point = ray.origin + root * ray.direction
                 # print(f"Intersection: {hit_point=}")
                 # check whether P is in this quadrangle
-                area_q1 = area_triangle(self.pointA, self.pointB, self.pointC)
-                area_q2 = area_triangle(self.pointD, self.pointB, self.pointC)
-                # print(f"{area_q1=}, {area_q2=}")
-                area_t1 = area_triangle(hit_point, self.pointA, self.pointB)
-                area_t2 = area_triangle(hit_point, self.pointB, self.pointC)
-                area_t3 = area_triangle(hit_point, self.pointC, self.pointD)
-                area_t4 = area_triangle(hit_point, self.pointD, self.pointA)
-                # print(f"{area_t1=}, {area_t2=}, {area_t3=}, {area_t4=}")
+                area_q1 = 0.5 * (self.pointB - self.pointA).cross(self.pointC - self.pointA).norm()
+                area_q2 = 0.5 * (self.pointB - self.pointD).cross(self.pointC - self.pointD).norm()
+                area_t1 = 0.5 * (self.pointA - hit_point).cross(self.pointB - hit_point).norm()
+                area_t2 = 0.5 * (self.pointB - hit_point).cross(self.pointC - hit_point).norm()
+                area_t3 = 0.5 * (self.pointC - hit_point).cross(self.pointD - hit_point).norm()
+                area_t4 = 0.5 * (self.pointD - hit_point).cross(self.pointA - hit_point).norm()
+                # area_q1 = area_triangle(self.pointA, self.pointB, self.pointC)
+                # area_q2 = area_triangle(self.pointD, self.pointB, self.pointC)
+                # # print(f"{area_q1=}, {area_q2=}")
+                # area_t1 = area_triangle(hit_point, self.pointA, self.pointB)
+                # area_t2 = area_triangle(hit_point, self.pointB, self.pointC)
+                # area_t3 = area_triangle(hit_point, self.pointC, self.pointD)
+                # area_t4 = area_triangle(hit_point, self.pointD, self.pointA)
+                # # print(f"{area_t1=}, {area_t2=}, {area_t3=}, {area_t4=}")
                 if abs(area_t1 + area_t2 + area_t3 + area_t4 - area_q1 - area_q2) < 1e-3:
                     # print("Hit")
                     is_hit = True
@@ -143,14 +150,18 @@ class Cube:
 @ti.data_oriented
 class Sphere:
     def __init__(self, center, radius, material, color):
-        self.center = center
+        self.center = ti.Vector.field(3, dtype=ti.f32, shape=())
+        self.center[None] = center
         self.radius = radius
         self.material = material
         self.color = color
+    def set_center(self, center):
+        self.center[None] = center
+        print("set center")
 
     @ti.func
     def hit(self, ray, t_min=0.001, t_max=10e8):
-        oc = ray.origin - self.center
+        oc = ray.origin - self.center[None]
         a = ray.direction.dot(ray.direction)
         b = 2.0 * oc.dot(ray.direction)
         c = oc.dot(oc) - self.radius * self.radius
@@ -171,7 +182,7 @@ class Sphere:
                 is_hit = True
         if is_hit:
             hit_point = ray.at(root)
-            hit_point_normal = (hit_point - self.center) / self.radius
+            hit_point_normal = (hit_point - self.center[None]) / self.radius
             # Check which side does the ray hit, we set the hit point normals always point outward from the surface
             if ray.direction.dot(hit_point_normal) < 0:
                 front_face = True
@@ -182,10 +193,21 @@ class Sphere:
 class Hittable_list:
     def __init__(self):
         self.objects = []
-    def add(self, obj):
-        self.objects.append(obj)
-    def clear(self):
-        self.objects = []
+        self.walls = []
+        self.foods = []
+    def add_food(self, obj):
+        self.foods.append(obj)
+        self.objects = self.foods + self.walls
+        print("add_food", self.objects)
+    def add_wall(self, obj):
+        self.walls.append(obj)
+        self.objects = self.foods + self.walls
+    # def add(self, obj):
+    #     self.objects.append(obj)
+    def reset_food(self):
+        self.foods = []
+        self.objects = self.foods + self.walls
+        print("clear_food", self.objects)
 
     @ti.func
     def hit(self, ray, t_min=0.001, t_max=10e8):
@@ -198,7 +220,7 @@ class Hittable_list:
         material = 1
         for index in ti.static(range(len(self.objects))):
             is_hit_tmp, root_tmp, hit_point_tmp, hit_point_normal_tmp, front_face_tmp, material_tmp, color_tmp =  self.objects[index].hit(ray, t_min, closest_t)
-            if is_hit_tmp:
+            if is_hit_tmp and root_tmp < closest_t:
                 closest_t = root_tmp
                 is_hit = is_hit_tmp
                 hit_point = hit_point_tmp
@@ -206,7 +228,7 @@ class Hittable_list:
                 front_face = front_face_tmp
                 material = material_tmp
                 color = color_tmp
-        return is_hit, hit_point, hit_point_normal, front_face, material, color
+        return is_hit, closest_t, hit_point, hit_point_normal, front_face, material, color
 
     @ti.func
     def hit_shadow(self, ray, t_min=0.001, t_max=10e8):
@@ -253,9 +275,10 @@ class Camera:
     def reset(self):
         self.vup[None] = [0.0, 1.0, 0.0] # TODO: seems unnecessary?
 
-        self.lookfrom[None] = [0.0, 1.0, -5.0]
+        self.lookfrom[None] = [0.0, 0.0, 0.0]
         self.u[None] = [-1.0, 0.0, 0.0]
         self.v[None] = [0.0, 1.0, 0.0]
+        # self.w[None] = [0.0, -0.6, 0.8]
         self.w[None] = [0.0, 0.0, -1.0]
 
         # self.w[None] = (self.lookfrom[None] - self.lookat[None]).normalized()
@@ -286,10 +309,10 @@ class Camera:
 
     @ti.func
     def calculate_parameter(self):
-        print("====")
-        print(self.u[None])
-        print(self.v[None])
-        print(self.w[None])
+        # print("====")
+        # print(self.u[None])
+        # print(self.v[None])
+        # print(self.w[None])
         theta = self.fov * (PI / 180.0)
         half_height = ti.tan(theta / 2.0)
         half_width = self.aspect_ratio * half_height

@@ -27,6 +27,27 @@
 ```
 
 ## 实现细节：
+
+本项目从Ray Tracing项目作为起点，一步步的向上迭代，替换不同组件，直到变成现在这个样子。
+
+### 摄像机的旋转实现
+> 首先是参考了课程中Ray Tracer一课中的样例Camera，实现了一个固定机位。然后试图寻找一个可以通过键盘/鼠标来操控摄像机转动的办法。
+> 一开始试图使用[Arcball] (https://graphicsinterface.org/wp-content/uploads/gi1992-18.pdf) 来实现这一旋转功能，然而尝试后（可以checkout到8f645b commit来观察）发现Arcball在使用鼠标拖动时在经过画面中间时会产生抖动。之后查询网上的[Demo](https://magnum.graphics/showcase/arcball/)猜测Arcball适用于旋转一个*在面前的物体*而非视角本身。因此放弃了使用arcball的方法。关于arcball的尝试，单开了一个[repo](https://github.com/bjmiao/taichi_arcball)，写了一个样例。
+> 在学习Arcball算法的过程中了解了旋转矩阵等概念，发现其实可以把摄像机旋转分解为沿着三根坐标轴分别的旋转。因此，目前的旋转控制是每个time step，沿着当前摄像机的u/v/w轴旋转一定角度完成的。这边套用了[某个向量沿着某根坐标轴的旋转矩阵](https://en.wikipedia.org/wiki/Rotation_matrix#Rotation_matrix_from_axis_and_angle)的公式。实现出来了一个还比较炫酷的旋转控制。
+
+
+~~四元数等概念放到arcball的repo里面~~ 
+   > 对于四元数的理解参考了[3B1B的视频](https://www.youtube.com/watch?v=d4EgbgTm0Bg)，以及Ben Eater做的[在线动画](https://eater.net/quaternions/video/rotation)
+
+
+
+#### 使用鼠标拖动来旋转视角
+> 
+
+### 附录
+关于编译时间的讨论见下：
+
+
 > 请给出代码的具体实现流程和细节，让感兴趣的人能够更深入的了解你的代码。
 
 # 示例
